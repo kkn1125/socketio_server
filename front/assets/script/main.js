@@ -39,17 +39,26 @@ socket.on("connect", (data) => {
   socket.emit("attach-server", { locale: navigator.language });
 });
 socket.on("attach-client", (data) => {
-  Object.assign(userDataMap, data);
-});
-socket.on("login-client", (data) => {
-  console.log(data.players)
-  Object.assign(userDataMap, data);
-});
-socket.on("location-client", (data) => {
-  users.set(data.id, data);
-});
-socket.on("player", (data) => {
+  const { players, ...user } = data;
   console.log(data);
+  Object.assign(userDataMap, user);
+  for (let user of players) {
+    users.set(user.id, Object.assign(users.get(user.id) || {}, user));
+  }
+  socket.on(`${userDataMap.space.pk}-${userDataMap.channel.pk}`, (data) => {
+    // console.log("room data", data);
+    if (data.type === "login") {
+      const { user } = data;
+      users.set(user.id, user);
+    } else if (data.type === "locations") {
+      const { type, ...user } = data;
+      users.set(user.id, Object.assign(users.get(user.id) || {}, user));
+    }
+  });
+});
+socket.on("logout", (data) => {
+  console.log("logout", data);
+  users.delete(data);
 });
 
 // login
@@ -69,9 +78,8 @@ function loginModal() {
     const nickname = document.querySelector('[name="nickname"]').value;
     const password = document.querySelector('[name="password"]').value;
     if (nickname && password) {
-      Object.assign(userDataMap.user, {
-        nickname,
-        password,
+      Object.assign(userDataMap, {
+        user: { ...userDataMap.user, nickname, password },
       });
       socket.emit("login-server", {
         pk: userDataMap.user.pk,
@@ -82,11 +90,11 @@ function loginModal() {
         poz: 0,
         roy: (Math.PI / 180) * 0,
       });
+      login.remove();
+      window.removeEventListener("click", loginprocess);
     } else {
       alert("입력칸을 채우세요");
     }
-    login.remove();
-    window.removeEventListener("click", loginprocess);
   }
   window.addEventListener("click", loginprocess);
 }
@@ -121,40 +129,52 @@ function clear() {
 function updateUser() {
   for (let user of users.values()) {
     ctx.fillRect(user.pox, user.poy, size, size);
+    ctx.textAlign = "center";
+    ctx.fillText(user.nickname, user.pox + size / 2, user.poy - 10);
   }
 }
-function updateLocation() {
+function userMove() {
   for (let user of users.values()) {
-    if (key === "w" || key === "s" || key === "a" || key === "d") {
+    if (direction["w"] || direction["s"] || direction["a"] || direction["d"]) {
       if (user.id === userDataMap.user.pk) {
-        if (key === "w") {
+        if (direction["w"]) {
+          Object.assign(user, {
+            poy: user.poy - speed,
+          });
+        }
+        if (direction["s"]) {
+          Object.assign(user, {
+            poy: user.poy + speed,
+          });
+        }
+        if (direction["a"]) {
           Object.assign(user, {
             pox: user.pox - speed,
           });
         }
-        if (key === "s") {
+        if (direction["d"]) {
           Object.assign(user, {
             pox: user.pox + speed,
           });
         }
-        if (key === "a") {
-          Object.assign(user, {
-            pox: user.pox - speed,
-          });
-        }
-        if (key === "d") {
-          Object.assign(user, {
-            pox: user.pox + speed,
-          });
-        }
+        updateLocation(user);
       }
     }
   }
 }
+function updateLocation(user) {
+  socket.emit("location-server", {
+    id: user.id,
+    pox: user.pox,
+    poy: user.poy,
+    poz: user.poz,
+    roy: user.roy,
+  });
+}
 function render() {
   clear();
   updateUser();
-  updateLocation();
+  userMove();
   requestAnimationFrame(render);
 }
 

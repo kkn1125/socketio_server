@@ -429,7 +429,7 @@ async function autoInsertUser(data, locale, dataMap) {
 }
 
 Query.attach = async (req, res, next) => {
-  console.log(req);
+  // console.log(req);
   try {
     const data = req;
     const dataMap = {};
@@ -533,9 +533,11 @@ Query.attach = async (req, res, next) => {
       players: finalInformations.players,
     };
   } catch (e) {
-    res.status(500).json({
-      ok: false,
-    });
+    console.log(e);
+    return { ok: false };
+    // res.status(500).json({
+    //   ok: false,
+    // });
   }
 };
 
@@ -579,10 +581,7 @@ Query.login = async (req, res, next) => {
 
     const [readPlayers] = await sql
       .promise()
-      .query(
-        `SELECT * FROM locations LEFT JOIN users ON users.id = locations.user_id WHERE users.id = ?`,
-        [pk]
-      );
+      .query(playersQueries, [space_id, channel_id]);
     // res.status(200).json({
     //   ok: true,
     //   pk: pk,
@@ -590,10 +589,16 @@ Query.login = async (req, res, next) => {
     //   players: readPlayers,
     // });
     return {
-      ok: true,
-      pk: pk,
       type: "login",
-      players: readPlayers,
+      user: {
+        id: pk,
+        nickname,
+        pox,
+        poy,
+        poz,
+        roy,
+      },
+      // players: readPlayers,
     };
   } catch (e) {
     res.status(500).json({
